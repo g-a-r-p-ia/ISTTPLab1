@@ -13,6 +13,8 @@ public partial class Detail
 
     public int? CategoryId { get; set; }
 
+    public decimal? Price { get; set; }
+
     public virtual ICollection<AdministratorDetail> AdministratorDetails { get; set; } = new List<AdministratorDetail>();
 
     public virtual Category? Category { get; set; }
