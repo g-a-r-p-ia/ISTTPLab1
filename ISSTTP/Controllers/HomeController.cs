@@ -1,3 +1,4 @@
+using ClosedXML.Excel;
 using ExcelDataReader;
 using ISSTTP.Data;
 using ISSTTP.Models;
@@ -5,6 +6,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
 using System.Text;
+using ClosedXML.Excel;
+using System.Data;
 
 namespace ISSTTP.Controllers
 {
@@ -57,7 +60,28 @@ namespace ISSTTP.Controllers
                 }
                 using (var stream = System.IO.File.Open(filePath, FileMode.Open, FileAccess.Read))
                 {
-                    using (var reader = ExcelReaderFactory.CreateReader(stream))
+                    using (XLWorkbook workBook = new XLWorkbook(stream))
+                    {
+                        //перегляд усіх листів (в даному випадку категорій книг)
+                        foreach (IXLWorksheet worksheet in workBook.Worksheets)
+                        {
+                            //worksheet.Name - назва категорії. Пробуємо знайти в БД, якщо відсутня, то створюємо нову
+
+                            var catname = worksheet.Name;
+                            var category = await _context.Categories.FirstOrDefaultAsync(cat => cat.Name == catname, cancellationToken);
+                            if (category == null)
+                            {
+                                category = new Category();
+                                category.Name = catname;
+                                category.Info = "from EXCEL";
+                                //додати в контекст
+                                _context.Categories.Add(category);
+                            }
+                        }
+                    }
+
+
+                            using (var reader = ExcelReaderFactory.CreateReader(stream))
                     {
                         do
                         {
@@ -77,8 +101,7 @@ namespace ISSTTP.Controllers
                                     Detail d = new Detail();
                                     d.Name = reader.GetValue(1).ToString();
                                     d.Info = reader.GetValue(2).ToString();
-                                    d.CategoryId = Convert.ToInt32(reader.GetValue(3).ToString());
-                                    d.Price = Convert.ToInt32(reader.GetValue(4).ToString());
+                                    d.Price = Convert.ToInt32(reader.GetValue(3).ToString());
 
                                     _context.Add(d);
                                     await _context.SaveChangesAsync();
@@ -95,5 +118,6 @@ namespace ISSTTP.Controllers
 
             return View();
         }
+       
      }
 }
