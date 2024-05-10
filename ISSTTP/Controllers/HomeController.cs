@@ -8,6 +8,7 @@ using System.Diagnostics;
 using System.Text;
 using ClosedXML.Excel;
 using System.Data;
+using DocumentFormat.OpenXml.Spreadsheet;
 
 namespace ISSTTP.Controllers
 {
@@ -16,6 +17,8 @@ namespace ISSTTP.Controllers
         private readonly ILogger<HomeController> _logger;
         private readonly DbcarShopContext _context;
         private readonly CancellationToken cancellationToken;
+       
+
 
         public HomeController(ILogger<HomeController> logger, DbcarShopContext context)
         {
@@ -81,7 +84,7 @@ namespace ISSTTP.Controllers
                     }
 
 
-                            using (var reader = ExcelReaderFactory.CreateReader(stream))
+                    using (var reader = ExcelReaderFactory.CreateReader(stream))
                     {
                         do
                         {
@@ -119,5 +122,115 @@ namespace ISSTTP.Controllers
             return View();
         }
        
-     }
+        private const string RootWorksheetName = "";
+
+
+        private static readonly IReadOnlyList<string> HeaderNames =
+            new string[]
+            {
+                "Назва",
+                "Адміністратор",
+                "Інформація",
+                "Ціна",
+            };
+       
+
+        private static void WriteHeader(IXLWorksheet worksheet)
+        {
+            for (int columnIndex = 0; columnIndex < HeaderNames.Count; columnIndex++)
+            {
+                worksheet.Cell(1, columnIndex + 1).Value = HeaderNames[columnIndex];
+            }
+            worksheet.Row(1).Style.Font.Bold = true;
+        }
+
+        private void WriteBook(IXLWorksheet worksheet, ISSTTP.Data.Detail detail, int rowIndex)
+        {
+            var columnIndex = 1;
+            worksheet.Cell(rowIndex, columnIndex++).Value = detail.Name;
+
+            var administratordetail = _context.AdministratorDetails.Where(ab => ab.DetailId == detail.Id)
+                                                    .Include(ab => ab.Administrator)
+                                                    .Distinct();
+            //book.AuthorBooks.ToList();
+            foreach (var ab in administratordetail)
+            {
+                    var admin = ab.Administrator;
+                    worksheet.Cell(rowIndex, columnIndex++).Value = admin.Name;
+                
+            }
+            worksheet.Cell(rowIndex, 3).Value = detail.Info;
+            worksheet.Cell(rowIndex, 4).Value = detail.Price;
+        }
+
+        private void WriteBooks(IXLWorksheet worksheet, ICollection<ISSTTP.Data.Detail> details)
+        {
+            WriteHeader(worksheet);
+            int rowIndex = 2;
+            foreach (var detail in details)
+            {
+                WriteBook(worksheet, detail, rowIndex);
+                rowIndex++;
+            }
+        }
+
+        private void WriteCategories(XLWorkbook workbook, ICollection<ISSTTP.Data.Category> categories)
+        {
+            //для усіх категорій формуємо сторінки
+            foreach (var cat in categories)
+            {
+
+                if (cat is not null)
+                {
+                    var worksheet = workbook.Worksheets.Add(cat.Name);
+                    WriteBooks(worksheet, cat.Details.ToList());
+                }
+            }
+        }
+
+
+        public async Task WriteToAsync(Stream stream, CancellationToken cancellationToken)
+        {
+            if (!stream.CanWrite)
+            {
+                throw new ArgumentException("Input stream is not writable");
+            }
+            //тут для прикладу пишемо усі книги в усіх категоріях, в своїх проєктах потрібно писати лише вибрані категорії та книги
+            var categories = await _context.Categories
+                .Include(category => category.Details)
+                .ToListAsync(cancellationToken);
+
+            var workbook = new XLWorkbook();
+
+            WriteCategories(workbook, (ICollection<Category>)categories);
+            workbook.SaveAs(stream);
+            
+        }
+        [HttpGet]
+        public async Task<IActionResult> Export([FromQuery] string contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      CancellationToken cancellationToken = default)
+        {
+            
+
+            var memoryStream = new MemoryStream();
+
+            await WriteToAsync(memoryStream, cancellationToken);
+
+            await memoryStream.FlushAsync(cancellationToken);
+            memoryStream.Position = 0;
+
+
+            return new FileStreamResult(memoryStream, contentType)
+            {
+                FileDownloadName = $"categiries_{DateTime.UtcNow.ToShortDateString()}.xlsx"
+            };
+        }
+
+
+
+
+
+    }
+
 }
+
