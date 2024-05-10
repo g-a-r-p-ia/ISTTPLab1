@@ -81,39 +81,40 @@ namespace ISSTTP.Controllers
                                 _context.Categories.Add(category);
                             }
                         }
-                    }
 
-
-                    using (var reader = ExcelReaderFactory.CreateReader(stream))
-                    {
-                        do
+                        using (var reader = ExcelReaderFactory.CreateReader(stream))
                         {
-                            bool isHeaderSkipped = false;
-
-                            while (reader.Read())
+                            do
                             {
-                                if (!isHeaderSkipped)
-                                {
-                                    isHeaderSkipped = true;
-                                    continue;
-                                }
-                                var detname = reader.GetValue(1).ToString();
-                                var detail = await _context.Details.FirstOrDefaultAsync(det => det.Name == detname, cancellationToken);
-                                if (detail == null)
-                                {
-                                    Detail d = new Detail();
-                                    d.Name = reader.GetValue(1).ToString();
-                                    d.Info = reader.GetValue(2).ToString();
-                                    d.Price = Convert.ToInt32(reader.GetValue(3).ToString());
+                                bool isHeaderSkipped = false;
 
-                                    _context.Add(d);
-                                    await _context.SaveChangesAsync();
+                                while (reader.Read())
+                                {
+                                    if (!isHeaderSkipped)
+                                    {
+                                        isHeaderSkipped = true;
+                                        continue;
+                                    }
+                                    var detname = reader.GetValue(1).ToString();
+                                    var detail = await _context.Details.FirstOrDefaultAsync(det => det.Name == detname, cancellationToken);
+                                    if (detail == null)
+                                    {
+                                        Detail d = new Detail();
+                                        d.Name = reader.GetValue(1).ToString();
+                                        d.Info = reader.GetValue(2).ToString();
+                                        d.Price = Convert.ToInt32(reader.GetValue(3).ToString());
+                                       
+                                        _context.Add(d);
+                                        await _context.SaveChangesAsync();
+                                    }
                                 }
-                            }
-                        } while (reader.NextResult());
+                            } while (reader.NextResult());
 
-                        ViewBag.Message = "success";
+                            ViewBag.Message = "success";
+                        }
                     }
+
+
                 }
             }
             else
